@@ -16,7 +16,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/pingcap/go-ycsb/metrics"
+	"github.com/uber-go/tally"
+	promreporter "github.com/uber-go/tally/prometheus"
+	"io"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -26,17 +29,14 @@ import (
 	"time"
 
 	"github.com/magiconair/properties"
-
-	// Register workload
-
-	"github.com/spf13/cobra"
-
 	"github.com/pingcap/go-ycsb/pkg/client"
 	"github.com/pingcap/go-ycsb/pkg/measurement"
 	"github.com/pingcap/go-ycsb/pkg/prop"
 	"github.com/pingcap/go-ycsb/pkg/util"
 	_ "github.com/pingcap/go-ycsb/pkg/workload"
 	"github.com/pingcap/go-ycsb/pkg/ycsb"
+	"github.com/pkg/profile"
+	"github.com/spf13/cobra"
 
 	// Register basic database
 	_ "github.com/pingcap/go-ycsb/db/basic"
@@ -50,16 +50,12 @@ import (
 	_ "github.com/pingcap/go-ycsb/db/aerospike"
 	// Register Badger database
 	_ "github.com/pingcap/go-ycsb/db/badger"
-	// Register FoundationDB database
-	_ "github.com/pingcap/go-ycsb/db/foundationdb"
 	// Register RocksDB database
 	_ "github.com/pingcap/go-ycsb/db/rocksdb"
 	// Register Spanner database
 	_ "github.com/pingcap/go-ycsb/db/spanner"
 	// Register pegasus database
 	_ "github.com/pingcap/go-ycsb/db/pegasus"
-	// Register sqlite database
-	_ "github.com/pingcap/go-ycsb/db/sqlite"
 	// Register cassandra database
 	_ "github.com/pingcap/go-ycsb/db/cassandra"
 	// Register mongodb database
@@ -70,12 +66,6 @@ import (
 	_ "github.com/pingcap/go-ycsb/db/boltdb"
 	// Register minio
 	_ "github.com/pingcap/go-ycsb/db/minio"
-	// Register elastic
-	_ "github.com/pingcap/go-ycsb/db/elasticsearch"
-	// Register etcd
-	_ "github.com/pingcap/go-ycsb/db/etcd"
-	// Register dynamodb
-	_ "github.com/pingcap/go-ycsb/db/dynamodb"
 )
 
 var (
@@ -90,6 +80,11 @@ var (
 	globalDB       ycsb.DB
 	globalWorkload ycsb.Workload
 	globalProps    *properties.Properties
+
+	RootScope       tally.Scope
+	ThroughputScope tally.Scope
+	RespTimeScope   tally.Scope
+	PromReporter    promreporter.Reporter
 )
 
 func initialGlobal(dbName string, onProperties func()) {
@@ -100,9 +95,6 @@ func initialGlobal(dbName string, onProperties func()) {
 
 	for _, prop := range propertyValues {
 		seps := strings.SplitN(prop, "=", 2)
-		if len(seps) != 2 {
-			log.Fatalf("bad property: `%s`, expected format `name=value`", prop)
-		}
 		globalProps.Set(seps[0], seps[1])
 	}
 
@@ -120,15 +112,11 @@ func initialGlobal(dbName string, onProperties func()) {
 	if len(tableName) == 0 {
 		tableName = globalProps.GetString(prop.TableName, prop.TableNameDefault)
 	}
-	var err error
-
-	if _, _, err = globalProps.Set(prop.TableName, tableName); err != nil {
-		panic(err)
-	}
 
 	workloadName := globalProps.GetString(prop.Workload, "core")
 	workloadCreator := ycsb.GetWorkloadCreator(workloadName)
 
+	var err error
 	if globalWorkload, err = workloadCreator.Create(globalProps); err != nil {
 		util.Fatalf("create workload %s failed %v", workloadName, err)
 	}
@@ -144,7 +132,24 @@ func initialGlobal(dbName string, onProperties func()) {
 }
 
 func main() {
+	if os.Getenv("YCSB_MEMPROFILE") != "" {
+		defer profile.Start(profile.MemProfile).Stop()
+	}
+
 	globalContext, globalCancel = context.WithCancel(context.Background())
+
+	var tallyCloser io.Closer
+
+	PromReporter = promreporter.NewReporter(promreporter.Options{})
+	RootScope, tallyCloser = tally.NewRootScope(tally.ScopeOptions{
+		Tags:           map[string]string{},
+		CachedReporter: PromReporter,
+		Separator:      promreporter.DefaultSeparator,
+	}, 1*time.Second)
+	defer tallyCloser.Close()
+
+	ThroughputScope = RootScope.SubScope("qps")
+	RespTimeScope = RootScope.SubScope("rt")
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc,
@@ -154,6 +159,12 @@ func main() {
 		syscall.SIGQUIT)
 
 	closeDone := make(chan struct{}, 1)
+
+	metrics.InitializeMetrics()
+	if os.Getenv("YCSB_METRICS_ON") != "" {
+		go metrics.ServeHTTP()
+	}
+
 	go func() {
 		sig := <-sc
 		fmt.Printf("\nGot signal [%v] to exit.\n", sig)

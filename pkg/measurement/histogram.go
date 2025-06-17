@@ -14,11 +14,15 @@
 package measurement
 
 import (
+	"bytes"
+	"fmt"
 	"sort"
 	"time"
 
 	hdrhistogram "github.com/HdrHistogram/hdrhistogram-go"
+	"github.com/magiconair/properties"
 	"github.com/pingcap/go-ycsb/pkg/util"
+	"github.com/pingcap/go-ycsb/pkg/ycsb"
 )
 
 type histogram struct {
@@ -36,14 +40,19 @@ const (
 	MIN       = "MIN"
 	MAX       = "MAX"
 	PER50TH   = "PER50TH"
-	PER90TH   = "PER90TH"
 	PER95TH   = "PER95TH"
 	PER99TH   = "PER99TH"
 	PER999TH  = "PER999TH"
 	PER9999TH = "PER9999TH"
 )
 
-func newHistogram() *histogram {
+func (h *histogram) Info() ycsb.MeasurementInfo {
+	res := h.getInfo()
+	delete(res, ELAPSED)
+	return newHistogramInfo(res)
+}
+
+func newHistogram(p *properties.Properties) *histogram {
 	h := new(histogram)
 	h.startTime = time.Now()
 	h.hist = hdrhistogram.New(1, 24*60*60*1000*1000, 3)
@@ -54,23 +63,21 @@ func (h *histogram) Measure(latency time.Duration) {
 	h.hist.RecordValue(latency.Microseconds())
 }
 
-func (h *histogram) Summary() []string {
+func (h *histogram) Summary() string {
 	res := h.getInfo()
 
-	return []string{
-		util.FloatToOneString(res[ELAPSED]),
-		util.IntToString(res[COUNT]),
-		util.FloatToOneString(res[QPS]),
-		util.IntToString(res[AVG]),
-		util.IntToString(res[MIN]),
-		util.IntToString(res[MAX]),
-		util.IntToString(res[PER50TH]),
-		util.IntToString(res[PER90TH]),
-		util.IntToString(res[PER95TH]),
-		util.IntToString(res[PER99TH]),
-		util.IntToString(res[PER999TH]),
-		util.IntToString(res[PER9999TH]),
-	}
+	buf := new(bytes.Buffer)
+	buf.WriteString(fmt.Sprintf("Takes(s): %.1f, ", res[ELAPSED]))
+	buf.WriteString(fmt.Sprintf("Count: %d, ", res[COUNT]))
+	buf.WriteString(fmt.Sprintf("OPS: %.1f, ", res[QPS]))
+	buf.WriteString(fmt.Sprintf("Avg(us): %d, ", res[AVG]))
+	buf.WriteString(fmt.Sprintf("Min(us): %d, ", res[MIN]))
+	buf.WriteString(fmt.Sprintf("Max(us): %d, ", res[MAX]))
+	buf.WriteString(fmt.Sprintf("50th(us): %d, ", res[PER50TH]))
+	buf.WriteString(fmt.Sprintf("95th(us): %d, ", res[PER95TH]))
+	buf.WriteString(fmt.Sprintf("99th(us): %d", res[PER99TH]))
+
+	return buf.String()
 }
 
 func (h *histogram) getInfo() map[string]interface{} {
@@ -83,7 +90,6 @@ func (h *histogram) getInfo() map[string]interface{} {
 	sort.Ints(bounds)
 
 	per50 := h.hist.ValueAtPercentile(50)
-	per90 := h.hist.ValueAtPercentile(90)
 	per95 := h.hist.ValueAtPercentile(95)
 	per99 := h.hist.ValueAtPercentile(99)
 	per999 := h.hist.ValueAtPercentile(99.9)
@@ -99,11 +105,24 @@ func (h *histogram) getInfo() map[string]interface{} {
 	res[MIN] = min
 	res[MAX] = max
 	res[PER50TH] = per50
-	res[PER90TH] = per90
 	res[PER95TH] = per95
 	res[PER99TH] = per99
 	res[PER999TH] = per999
 	res[PER9999TH] = per9999
-
 	return res
+}
+
+type histogramInfo struct {
+	info map[string]interface{}
+}
+
+func newHistogramInfo(info map[string]interface{}) *histogramInfo {
+	return &histogramInfo{info: info}
+}
+
+func (hi *histogramInfo) Get(metricName string) interface{} {
+	if value, ok := hi.info[metricName]; ok {
+		return value
+	}
+	return nil
 }

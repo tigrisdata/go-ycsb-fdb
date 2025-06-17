@@ -5,7 +5,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/XiaoMi/pegasus-go-client v0.0.0-20181029071519-9400942c5d1c
 	github.com/aerospike/aerospike-client-go v1.35.2
-	github.com/apple/foundationdb/bindings/go v0.0.0-20200112054404-407dc0907f4f
+	github.com/apple/foundationdb/bindings/go v0.0.0-20250221231555-5140696da2df
 	github.com/boltdb/bolt v1.3.1
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
@@ -22,13 +22,14 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocql/gocql v0.0.0-20181124151448-70385f88b28b
 	github.com/lib/pq v1.1.1
-	github.com/magiconair/properties v1.8.0
+	github.com/magiconair/properties v1.8.6
 	github.com/mattn/go-sqlite3 v2.0.1+incompatible
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pingcap/errors v0.11.5-0.20211224045212-9687c2b0f87c
 	github.com/pingcap/kvproto v0.0.0-20220705053936-aa9c2d20cd2a
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pkg/profile v1.6.0
 	github.com/spf13/cobra v1.0.0
 	github.com/tecbot/gorocksdb v0.0.0-20191217155057-f0fad39f321c
 	github.com/tikv/client-go/v2 v2.0.1-0.20220720064224-aa9ded37d17d
@@ -92,7 +93,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -105,10 +106,10 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pingcap/failpoint v0.0.0-20210918120811-547c13e3eb00 // indirect
 	github.com/pingcap/log v0.0.0-20211215031037-e024ba4eb0ee // indirect
-	github.com/prometheus/client_golang v1.11.1 // indirect
+	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
-	github.com/prometheus/common v0.26.0 // indirect
-	github.com/prometheus/procfs v0.6.0 // indirect
+	github.com/prometheus/common v0.34.0 // indirect
+	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
@@ -116,10 +117,17 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710 // indirect
 	github.com/twmb/murmur3 v1.1.3 // indirect
+	github.com/uber-go/tally v3.5.0+incompatible
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.1 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+)
+
+require (
+	github.com/m3db/prometheus_client_golang v1.12.8 // indirect
+	github.com/m3db/prometheus_client_model v0.2.1 // indirect
+	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20181031023651-12c4817b42c5 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.2 // indirect
 	go.opencensus.io v0.24.0 // indirect

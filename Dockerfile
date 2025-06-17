@@ -1,12 +1,14 @@
-FROM golang:1.18.4-alpine3.16
+FROM ubuntu:jammy
 
 ENV GOPATH /go
 
-RUN apk update && apk upgrade && \
-    apk add --no-cache git build-base wget
+RUN apt update && apt install -y golang git wget
 
 RUN wget -O /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64 \
  && chmod +x /usr/local/bin/dumb-init
+
+RUN wget https://github.com/apple/foundationdb/releases/download/7.3.63/foundationdb-clients_7.3.63-1_amd64.deb \
+ && dpkg -i foundationdb*.deb
 
 RUN mkdir -p /go/src/github.com/pingcap/go-ycsb
 WORKDIR /go/src/github.com/pingcap/go-ycsb
@@ -18,15 +20,20 @@ RUN GO111MODULE=on go mod download
 
 COPY . .
 
-RUN GO111MODULE=on go build -o /go-ycsb ./cmd/*
+RUN GO11MODULE=on go build -tags "foundationdb release" -o /go-ycsb ./cmd/*
 
-FROM alpine:3.8 
+FROM ubuntu:jammy
 
 COPY --from=0 /go-ycsb /go-ycsb
 COPY --from=0 /usr/local/bin/dumb-init /usr/local/bin/dumb-init
 
+RUN apt update && apt install -y wget && apt-get purge -y --auto-remove \
+ && wget https://github.com/apple/foundationdb/releases/download/7.3.63/foundationdb-clients_7.3.63-1_amd64.deb \
+ && dpkg -i foundationdb*.deb
+
 ADD workloads /workloads
+ADD run.sh /run.sh
 
 EXPOSE 6060
 
-ENTRYPOINT [ "/usr/local/bin/dumb-init", "/go-ycsb" ]
+ENTRYPOINT [ "/run.sh" ]
