@@ -9,7 +9,7 @@ on:
     branches: [master]
 
 env:
-  QUAY_REPO: "quay.io/tigrisdata/ycsb"
+  QUAY_REPO: "quay.io/tigrisdata/ycsb-fdb"
   TAG: "master"
 
 jobs:
