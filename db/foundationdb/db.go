@@ -306,13 +306,25 @@ func (db *fDB) Insert(ctx context.Context, table string, key string, values map[
 }
 
 func (db *fDB) BatchInsert(ctx context.Context, table string, keys []string, values []map[string][]byte) error {
-	for keyIdx, key := range keys {
-		err := db.Insert(ctx, table, key, values[keyIdx])
-		if err != nil {
-			return err
+	var err error
+
+	_, err = db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
+		for _, key := range keys {
+			buf := db.bufPool.Get()
+			for _, value := range values {
+				buf, err = db.r.Encode(buf, value)
+				db.bufPool.Put(buf)
+			}
+
+			rowKey := db.getRowKey(table, key)
+			tr.Set(fdb.Key(rowKey), buf)
 		}
+		return
+	})
+	if err != nil && os.Getenv("FDB_PRINT_ERRORS") != "" {
+		fmt.Println("Got fdb error: ", err)
 	}
-	return nil
+	return err
 }
 
 func (db *fDB) Delete(ctx context.Context, table string, key string) error {
