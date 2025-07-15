@@ -113,18 +113,19 @@ func (db *fDB) isNewVersionNeeded() bool {
 }
 
 func (db *fDB) Read(ctx context.Context, table string, key string, fields []string) (map[string][]byte, error) {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	rowKey := db.getRowKey(table, key)
 	row, err := db.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		if db.drReadEnabled {
 			tr.Options().SetReadLockAware()
-		}
-		if db.useCachedReadVersions {
-			if !db.isNewVersionNeeded() {
-				tr.SetReadVersion(db.cachedReadVersion)
-			} else {
-				db.cachedReadVersion = tr.GetReadVersion().MustGet()
-				db.readVersionCachedAt = time.Now()
-			}
 		}
 		f := tr.Get(fdb.Key(rowKey))
 		return f.Get()
@@ -143,8 +144,18 @@ func (db *fDB) Read(ctx context.Context, table string, key string, fields []stri
 }
 
 func (db *fDB) BatchRead(ctx context.Context, table string, keys []string, fields []string) ([]map[string][]byte, error) {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	res := make([]map[string][]byte, len(keys))
 	for _, key := range keys {
+
 		val, err := db.Read(ctx, table, key, fields)
 		if err != nil {
 			return nil, err
@@ -155,6 +166,15 @@ func (db *fDB) BatchRead(ctx context.Context, table string, keys []string, field
 }
 
 func (db *fDB) Scan(ctx context.Context, table string, startKey string, count int, fields []string) ([]map[string][]byte, error) {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	rowKey := db.getRowKey(table, startKey)
 	res, err := db.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		if db.drReadEnabled {
@@ -197,7 +217,17 @@ func (db *fDB) Scan(ctx context.Context, table string, startKey string, count in
 }
 
 func (db *fDB) Update(ctx context.Context, table string, key string, values map[string][]byte) error {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	rowKey := db.getRowKey(table, key)
+
 	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
 		if db.drReadEnabled {
 			tr.Options().SetReadLockAware()
@@ -239,6 +269,15 @@ func (db *fDB) Update(ctx context.Context, table string, key string, values map[
 }
 
 func (db *fDB) BatchUpdate(ctx context.Context, table string, keys []string, values []map[string][]byte) error {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
 		for keyIdx, key := range keys {
 			rowKey := db.getRowKey(table, key)
@@ -284,6 +323,15 @@ func (db *fDB) BatchUpdate(ctx context.Context, table string, keys []string, val
 }
 
 func (db *fDB) Insert(ctx context.Context, table string, key string, values map[string][]byte) error {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	// Simulate TiDB data
 	buf := db.bufPool.Get()
 	defer db.bufPool.Put(buf)
@@ -306,7 +354,31 @@ func (db *fDB) Insert(ctx context.Context, table string, key string, values map[
 }
 
 func (db *fDB) BatchInsert(ctx context.Context, table string, keys []string, values []map[string][]byte) error {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	for keyIdx, key := range keys {
+		if err != nil {
+			return err
+		}
+
+		rowKey := db.getRowKey(table, key)
+		_, err = db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
+			buf := db.bufPool.Get()
+			db.bufPool.Put(buf)
+
+			buf, err := db.r.Encode(buf, values[keyIdx])
+
+			tr.Set(fdb.Key(rowKey), buf)
+
+		})
+
 		err := db.Insert(ctx, table, key, values[keyIdx])
 		if err != nil {
 			return err
@@ -316,6 +388,15 @@ func (db *fDB) BatchInsert(ctx context.Context, table string, keys []string, val
 }
 
 func (db *fDB) Delete(ctx context.Context, table string, key string) error {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	rowKey := db.getRowKey(table, key)
 	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
 
@@ -329,6 +410,15 @@ func (db *fDB) Delete(ctx context.Context, table string, key string) error {
 }
 
 func (db *fDB) BatchDelete(ctx context.Context, table string, keys []string) error {
+	if db.useCachedReadVersions {
+		if !db.isNewVersionNeeded() {
+			tr.SetReadVersion(db.cachedReadVersion)
+		} else {
+			db.cachedReadVersion = tr.GetReadVersion().MustGet()
+			db.readVersionCachedAt = time.Now()
+		}
+	}
+
 	for _, key := range keys {
 		err := db.Delete(ctx, table, key)
 		if err != nil {
