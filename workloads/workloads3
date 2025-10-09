@@ -1,0 +1,25 @@
+# Yahoo! Cloud System Benchmark
+# Workload S3: Read heavy workload
+#
+#   Read/update ratio: 80/20
+#   Default data size: 1 KB records (1 field, 1000 bytes each, plus key)
+#   Request distribution: zipfian
+
+recordcount=10000
+operationcount=10000
+workload=core
+
+readallfields=true
+
+readproportion=0.8
+updateproportion=0.2
+scanproportion=0
+insertproportion=0
+
+insertorder=hashed
+requestdistribution=zipfian
+
+fieldlength=1000
+fieldcount=1
+
+threadcount=32
