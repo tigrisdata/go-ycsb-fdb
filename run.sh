@@ -34,8 +34,24 @@ FDB_USE_CACHED_READ_VERSION=${FDB_USE_CACHED_READ_VERSION:-false}
 FDB_VERSION_CACHE_TIME=${FDB_VERSION_CACHE_TIME:-2s}
 BENCHMARK_NAME_PREFIX=${BENCHMARK_NAME_PREFIX:-"UnnamedBenchmark"}
 BATCH_SIZE=${BATCH_SIZE:-1}
+INSERT_ORDER=${INSERT_ORDER:-"hashed"}
+REQUEST_DISTRIBUTION=${REQUEST_DISTRIBUTION:-"zipfian"}
+S3_BUCKET=${S3_BUCKET:-"sample_bucket_name"}
+S3_ENDPOINT=${S3_ENDPOINT:-"https://sample.url"}
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-"supply_access_key_through_secret"}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-"supply_secret_key_through_secret"}
+S3_USE_PATH_STYLE=${S3_USE_PATH_STYLE:-"true"}
 
-WORKLOAD="recordcount=${RECORDCOUNT}
+function benchmark_fdb() {
+  echo "Benchmark start (foundationdb)"
+	echo "Using FDB_CLUSTER_FILE ${FDB_CLUSTER_FILE}"
+	echo "Using FDB_API_VERSION ${FDB_API_VERSION}"
+	echo "Using LOADTHREADCOUNT ${LOADTHREADCOUNT}"
+	echo "Using RUNTHREADCOUNT ${RUNTHREADCOUNT}"
+	echo "Using RUNTHREADDURATION ${RUNTHREADDURATION}"
+	echo "Using cached read version ${FDB_USE_CACHED_READ_VERSION}, version cache time: ${FDB_VERSION_CACHE_TIME}"
+
+  WORKLOAD_FDB="recordcount=${RECORDCOUNT}
 operationcount=${OPERATIONCOUNT}
 workload=core
 
@@ -52,15 +68,7 @@ scanlengthdistribution=${SCANLENGTHDISTRIBUTION}
 batch.size=${BATCH_SIZE}
 "
 
-function benchmark_fdb() {
-  echo "Benchmark start"
-	echo "Using FDB_CLUSTER_FILE ${FDB_CLUSTER_FILE}"
-	echo "Using FDB_API_VERSION ${FDB_API_VERSION}"
-	echo "Using LOADTHREADCOUNT ${LOADTHREADCOUNT}"
-	echo "Using RUNTHREADCOUNT ${RUNTHREADCOUNT}"
-	echo "Using RUNTHREADDURATION ${RUNTHREADDURATION}"
-	echo "Using cached read version ${FDB_USE_CACHED_READ_VERSION}, version cache time: ${FDB_VERSION_CACHE_TIME}"
-
+  echo "${WORKLOAD_FDB}" > workloads/dynamic
 
 	if [ ${STARTWITHLOAD} -gt 0 ]
 	then
@@ -96,13 +104,60 @@ function benchmark_fdb() {
 	fi
 }
 
-echo "${WORKLOAD}" > workloads/dynamic
+function benchmark_s3() {
+  echo "Benchmark start (s3)"
+
+WORKLOAD_S3="recordcount=${RECORDCOUNT}
+  operationcount=${OPERATIONCOUNT}
+  workload=core
+
+  readallfields=${READALLFIELDS}
+
+  readproportion=${READPROPORTION}
+  updateproportion=${UPDATEPROPORTION}
+  scanproportion=${SCANPROPORTION}
+  insertproportion=${INSERTPROPORTION}
+
+  insertorder=${INSERT_ORDER}
+  requestdistribution=${REQUEST_DISTRIBUTION}
+
+  fieldlength=${FIELDLENGTH}
+  fieldcount=${FIELDCOUNT}
+  "
+
+  echo "${WORKLOAD_S3}" > workloads/dynamic
+
+	if [ ${STARTWITHLOAD} -gt 0 ]
+	then
+		echo "Loading new database"
+		export BENCHMARK_NAME="${BENCHMARK_NAME_PREFIX}-load"
+    ${BIN_PATH}/go-ycsb load s3 -p s3.bucket=${S3_BUCKET} -p s3.endpoint=${S3_ENDPOINT} -p s3.access_key=${AWS_ACCESS_KEY_ID} -p s3.secret_key=${AWS_SECRET_ACCESS_KEY} -p s3.use_path_style=${S3_USE_PATH_STYLE} -p fieldcount="${FIELDCOUNT}" -p fieldlength=${FIELDLENGTH} -P workloads/dynamic -p threadcount=${LOADTHREADCOUNT}
+    echo "Load completed"
+	fi
+
+	if [ "x${RUNMODE}" == "xsingle" ]
+	then
+		while true
+		do
+			echo "Running benchmark"
+      export BENCHMARK_NAME="${BENCHMARK_NAME_PREFIX}-run"
+      timeout ${RUNTHREADDURATION} ${BIN_PATH}/go-ycsb run s3 -p s3.bucket=${S3_BUCKET} -p s3.endpoint=${S3_ENDPOINT} -p s3.access_key=${AWS_ACCESS_KEY_ID} -p s3.secret_key=${AWS_SECRET_ACCESS_KEY} -p s3.use_path_style=${S3_USE_PATH_STYLE} -p fieldcount="${FIELDCOUNT}" -p fieldlength=${FIELDLENGTH} -P workloads/dynamic -p threadcount=${RUNTHREADCOUNT}
+			echo "Run completed, sleeping before running again"
+			sleep ${RUNTHREADSLEEPINTERVAL}
+		done
+	fi
+
+
+}
 
 echo "Using engine ${ENGINE}"
 
 case ${ENGINE} in
   "foundationdb")
   	benchmark_fdb
+  ;;
+  "s3")
+    benchmark_s3
   ;;
   *)
   	echo "Unknown engine"
