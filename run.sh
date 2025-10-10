@@ -41,6 +41,8 @@ S3_ENDPOINT=${S3_ENDPOINT:-"https://sample.url"}
 AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-"supply_access_key_through_secret"}
 AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-"supply_secret_key_through_secret"}
 S3_USE_PATH_STYLE=${S3_USE_PATH_STYLE:-"true"}
+STOP_AFTER_LOAD=${STOP_AFTER_LOAD:-"false"}
+SLEEP_INTERVAL_AFTER_STOP=${SLEEP_INTERVAL_AFTER_STOP:-"14400"}
 
 function benchmark_fdb() {
   echo "Benchmark start (foundationdb)"
@@ -134,6 +136,13 @@ WORKLOAD_S3="recordcount=${RECORDCOUNT}
     ${BIN_PATH}/go-ycsb load s3 -p s3.bucket=${S3_BUCKET} -p s3.endpoint=${S3_ENDPOINT} -p s3.access_key=${AWS_ACCESS_KEY_ID} -p s3.secret_key=${AWS_SECRET_ACCESS_KEY} -p s3.use_path_style=${S3_USE_PATH_STYLE} -p fieldcount="${FIELDCOUNT}" -p fieldlength=${FIELDLENGTH} -P workloads/dynamic -p threadcount=${LOADTHREADCOUNT}
     echo "Load completed"
 	fi
+
+  if [ "x${STOP_AFTER_LOAD}" == "xtrue" ]
+  then
+    echo "Load finished, requested to stop, sleeping"
+    sleep ${SLEEP_INTERVAL_AFTER_STOP}
+    exit 0
+  fi
 
 	if [ "x${RUNMODE}" == "xsingle" ]
 	then
